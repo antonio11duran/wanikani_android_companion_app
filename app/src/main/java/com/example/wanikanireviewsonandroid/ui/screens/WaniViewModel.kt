@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.wanikanireviewsonandroid.BuildConfig
+import com.example.wanikanireviewsonandroid.network.ResultParent
 import com.example.wanikanireviewsonandroid.network.ReviewResponse
 import com.example.wanikanireviewsonandroid.network.ReviewResult
 import com.example.wanikanireviewsonandroid.network.SubjectData
@@ -26,12 +27,6 @@ enum class ReviewType {
     READING
 }
 
-data class PendingReview(
-    val assignmentId: Int,
-    var meaningIncorrect: Int = 0,
-    var readingIncorrect: Int = 0
-)
-
 class WaniViewModel : ViewModel() {
     /** The mutable State that stores the status of the most recent request */
     var waniUiState: WaniUiState by mutableStateOf(WaniUiState.Loading)
@@ -43,7 +38,7 @@ class WaniViewModel : ViewModel() {
     var reviewType: ReviewType by mutableStateOf(ReviewType.MEANING)
         private set
 
-    val pendingReviews = mutableMapOf<Int, PendingReview>()
+    val pendingReviews = mutableMapOf<Int, ReviewResult>()
 
     /**
      * Call getWaniKani() on init so we can display status immediately.
@@ -66,6 +61,21 @@ class WaniViewModel : ViewModel() {
         }
     }
 
+    fun sendPendingReview(assignmentId: Int) {
+//        android.util.Log.d("WaniKani", "sendPendingReview called for $assignmentId")
+        viewModelScope.launch {
+            try {
+                val review = pendingReviews.getOrDefault(assignmentId, ReviewResult(assignmentId))
+//                android.util.Log.d("WaniKani", "About to POST review for $assignmentId")
+                WaniApi.retrofitService.sendReview("Bearer $myKey", ResultParent(review))
+                pendingReviews.remove(assignmentId)
+//                android.util.Log.d("WaniKani", "Review posted for assignment $assignmentId")
+            } catch (e: Exception) {
+                android.util.Log.e("WaniKani", "POST failed: ${e.toString()}")
+            }
+        }
+    }
+
     fun incrementIndex() {
         val state = waniUiState
         if (state is WaniUiState.Success) {
@@ -84,6 +94,8 @@ class WaniViewModel : ViewModel() {
                 for (meaning in meanings) {
                     if (meaning == lowercaseInput) {
                         if (readings.isEmpty()) {
+//                            android.util.Log.d("WaniKani", "Correct answer, calling sendPendingReview for $assignmentId")
+                            sendPendingReview(assignmentId)
                             incrementIndex()
                         } else {
                             reviewType = ReviewType.READING
@@ -91,19 +103,21 @@ class WaniViewModel : ViewModel() {
                         return
                     }
                 }
-                val entry = pendingReviews.getOrPut(assignmentId) { PendingReview(assignmentId) }
-                entry.meaningIncorrect++
+                val entry = pendingReviews.getOrPut(assignmentId) { ReviewResult(assignmentId) }
+                entry.countMeaningIncorrect++
             }
             ReviewType.READING -> {
                 for (reading in readings) {
                     if (reading == lowercaseInput) {
                         reviewType = ReviewType.MEANING
+//                        android.util.Log.d("WaniKani", "Correct answer, calling sendPendingReview for $assignmentId")
+                        sendPendingReview(assignmentId)
                         incrementIndex()
                         return
                     }
                 }
-                val entry = pendingReviews.getOrPut(assignmentId) { PendingReview(assignmentId) }
-                entry.readingIncorrect++
+                val entry = pendingReviews.getOrPut(assignmentId) { ReviewResult(assignmentId) }
+                entry.countReadingIncorrect++
             }
         }
 

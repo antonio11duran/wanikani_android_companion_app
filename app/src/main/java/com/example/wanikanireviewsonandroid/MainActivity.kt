@@ -37,7 +37,7 @@ class MainActivity : ComponentActivity() {
                                 val review = state.reviews.data.getOrNull(waniViewModel.reviewIndex)
                                 val subject = state.subjects.data.find { it.id == review?.data?.subjectID }
                                 if (subject != null) {
-                                    waniViewModel.answerValidation(userInput, subject.data, assignmentId = review?.id)
+                                    waniViewModel.answerValidation(userInput, subject.data, assignmentId = review?.id ?: 0)
                                 }
                             }
                                    },
