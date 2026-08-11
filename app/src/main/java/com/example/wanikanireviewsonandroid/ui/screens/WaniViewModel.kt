@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.wanikanireviewsonandroid.BuildConfig
 import com.example.wanikanireviewsonandroid.network.ReviewResponse
+import com.example.wanikanireviewsonandroid.network.ReviewResult
 import com.example.wanikanireviewsonandroid.network.SubjectData
 import com.example.wanikanireviewsonandroid.network.SubjectResponse
 import com.example.wanikanireviewsonandroid.network.WaniApi
@@ -25,6 +26,12 @@ enum class ReviewType {
     READING
 }
 
+data class PendingReview(
+    val assignmentId: Int,
+    var meaningIncorrect: Int = 0,
+    var readingIncorrect: Int = 0
+)
+
 class WaniViewModel : ViewModel() {
     /** The mutable State that stores the status of the most recent request */
     var waniUiState: WaniUiState by mutableStateOf(WaniUiState.Loading)
@@ -35,6 +42,8 @@ class WaniViewModel : ViewModel() {
 
     var reviewType: ReviewType by mutableStateOf(ReviewType.MEANING)
         private set
+
+    val pendingReviews = mutableMapOf<Int, PendingReview>()
 
     /**
      * Call getWaniKani() on init so we can display status immediately.
@@ -66,7 +75,7 @@ class WaniViewModel : ViewModel() {
         }
     }
 
-    fun answerValidation(userInput: String, currentSubject: SubjectData) {
+    fun answerValidation(userInput: String, currentSubject: SubjectData, assignmentId: Int) {
         val meanings: List<String> = currentSubject.meanings.filter { it.acceptedAnswer }.map { it.meaning }.map { it.lowercase() }
         val readings: List<String> = currentSubject.readings.filter { it.acceptedAnswer }.map { it.reading }.map { it.lowercase() }
         val lowercaseInput = userInput.lowercase()
@@ -82,6 +91,8 @@ class WaniViewModel : ViewModel() {
                         return
                     }
                 }
+                val entry = pendingReviews.getOrPut(assignmentId) { PendingReview(assignmentId) }
+                entry.meaningIncorrect++
             }
             ReviewType.READING -> {
                 for (reading in readings) {
@@ -91,6 +102,8 @@ class WaniViewModel : ViewModel() {
                         return
                     }
                 }
+                val entry = pendingReviews.getOrPut(assignmentId) { PendingReview(assignmentId) }
+                entry.readingIncorrect++
             }
         }
 
